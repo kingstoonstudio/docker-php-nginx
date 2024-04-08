@@ -3,7 +3,15 @@ FROM alpine:${ALPINE_VERSION}
 LABEL Maintainer="Gábor Móró <moro.gabor@kingstoonstudio.com>"
 LABEL Description="Lightweight container with Nginx 1.24 & PHP 8.3 based on Alpine Linux. (Forked from TrafeX/docker-php-nginx)"
 # Setup document root
-WORKDIR /var/www/html
+WORKDIR /WWW
+RUN mkdir -p /var/www/html
+
+ENV PHP_INI_DIR /etc/php83
+
+# Setup app user
+RUN addgroup -g 65000 app
+RUN adduser -s /sbin/nologin -G app -D -H -u 65000 app
+RUN adduser app app
 
 # Install language pack
 RUN apk add --no-cache --update tzdata
@@ -52,12 +60,15 @@ RUN apk add --no-cache \
   php83-zip \
   php83-pecl-ssh2 \
   php83-pecl-yaml \
-  php83-pecl-psr \
   php83-pecl-redis \
   php83-pecl-mailparse \
   php83-pecl-memcache \
   php83-pecl-memcached \
   supervisor
+
+# Volumes
+VOLUME /etc/nginx
+VOLUME ${PHP_INI_DIR}
 
 # Configure nginx - http
 COPY config/nginx.conf /etc/nginx/nginx.conf
@@ -65,7 +76,6 @@ COPY config/nginx.conf /etc/nginx/nginx.conf
 COPY config/conf.d /etc/nginx/conf.d/
 
 # Configure PHP-FPM
-ENV PHP_INI_DIR /etc/php83
 COPY config/fpm-pool.conf ${PHP_INI_DIR}/php-fpm.d/www.conf
 COPY config/php.ini ${PHP_INI_DIR}/conf.d/custom.ini
 
@@ -73,16 +83,16 @@ COPY config/php.ini ${PHP_INI_DIR}/conf.d/custom.ini
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Make sure files/folders needed by the processes are accessable when they run under the nobody user
-RUN chown -R nobody.nobody /var/www/html /run /var/lib/nginx /var/log/nginx
+RUN chown -R app.app /var/www/html /run /var/lib/nginx /var/log/nginx /WWW
 
 # Create symlink for php
 RUN ln -s /usr/bin/php83 /usr/bin/php
 
 # Switch to use a non-root user from here on
-USER nobody
+USER app
 
 # Add application
-COPY --chown=nobody src/ /var/www/html/
+COPY --chown=app src/ /var/www/html/
 
 # Expose the port nginx is reachable on
 EXPOSE 8080
